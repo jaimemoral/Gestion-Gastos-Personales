@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestión de Gastos Personales</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Gestión de Gastos Personales</h1>
+  <button type="button" id="logout-btn" class="hidden">Cerrar sesión</button>
+</header>
+
+<main id="app">
+
+  <!-- VISTA LOGIN -->
+  <section id="view-login" class="view">
+    <div class="card card-narrow">
+      <h2>Iniciar sesión</h2>
+      <p class="muted">Introduce tu email para recibir un enlace de acceso.</p>
+      <form id="login-form">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" required placeholder="jmoral@kaizen.com">
+        <button type="submit">Enviar enlace mágico</button>
+      </form>
+      <p id="login-message" class="message hidden"></p>
+    </div>
+  </section>
+
+  <!-- APP (visible tras login) -->
+  <div id="view-app" class="hidden">
+
+    <nav class="tabs">
+      <button type="button" class="tab-btn active" data-tab="expense">Registrar gasto</button>
+      <button type="button" class="tab-btn" data-tab="reports">Reportes</button>
+    </nav>
+
+    <!-- VISTA REGISTRO DE GASTO -->
+    <section id="view-expense" class="view tab-panel active">
+      <div class="card">
+        <h2>Nuevo gasto</h2>
+        <form id="expense-form">
+          <div class="form-grid">
+            <div class="field">
+              <label for="expense-date">Fecha</label>
+              <input type="date" id="expense-date" required>
+            </div>
+            <div class="field">
+              <label for="expense-amount">Importe (€)</label>
+              <input type="number" id="expense-amount" step="0.01" min="0" required>
+            </div>
+            <div class="field">
+              <label for="expense-category">Categoría</label>
+              <select id="expense-category" required></select>
+            </div>
+            <div class="field">
+              <label for="expense-payment-method">Método de pago</label>
+              <select id="expense-payment-method" required>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Tarjeta">Tarjeta</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Bizum">Bizum</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="expense-provider">Proveedor</label>
+              <input type="text" id="expense-provider" placeholder="Ej. Mercadona">
+            </div>
+            <div class="field field-wide">
+              <label for="expense-description">Descripción</label>
+              <input type="text" id="expense-description" placeholder="Detalle del gasto">
+            </div>
+          </div>
+          <button type="submit">Guardar gasto</button>
+        </form>
+        <p id="expense-message" class="message hidden"></p>
+      </div>
+
+      <div class="card">
+        <h2>Últimos gastos</h2>
+        <div class="table-wrap">
+          <table id="recent-expenses-table">
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Categoría</th><th>Importe</th><th>Método</th><th>Proveedor</th><th>Descripción</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- VISTA REPORTES -->
+    <section id="view-reports" class="view tab-panel">
+      <div class="card">
+        <h2>Filtros</h2>
+        <form id="report-filters" class="form-grid">
+          <div class="field">
+            <label for="report-date-from">Desde</label>
+            <input type="date" id="report-date-from">
+          </div>
+          <div class="field">
+            <label for="report-date-to">Hasta</label>
+            <input type="date" id="report-date-to">
+          </div>
+          <div class="field">
+            <label for="report-category">Categoría</label>
+            <select id="report-category">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div class="field field-actions">
+            <button type="submit">Aplicar filtros</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Presupuesto vs. Gastado</h2>
+        <div class="chart-wrap">
+          <canvas id="budget-chart"></canvas>
+        </div>
+        <div class="table-wrap">
+          <table id="budget-table">
+            <thead>
+              <tr><th>Categoría</th><th>Planificado</th><th>Gastado</th><th>Diferencia</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Detalle de gastos filtrados</h2>
+        <div class="table-wrap">
+          <table id="filtered-expenses-table">
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Categoría</th><th>Importe</th><th>Método</th><th>Proveedor</th><th>Descripción</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

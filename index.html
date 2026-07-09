@@ -10,27 +10,11 @@
 
 <header class="topbar">
   <h1>Gestión de Gastos Personales</h1>
-  <button type="button" id="logout-btn" class="hidden">Cerrar sesión</button>
 </header>
 
 <main id="app">
 
-  <!-- VISTA LOGIN -->
-  <section id="view-login" class="view">
-    <div class="card card-narrow">
-      <h2>Iniciar sesión</h2>
-      <p class="muted">Introduce tu email para recibir un enlace de acceso.</p>
-      <form id="login-form">
-        <label for="login-email">Email</label>
-        <input type="email" id="login-email" required placeholder="jmoral@kaizen.com">
-        <button type="submit">Enviar enlace mágico</button>
-      </form>
-      <p id="login-message" class="message hidden"></p>
-    </div>
-  </section>
-
-  <!-- APP (visible tras login) -->
-  <div id="view-app" class="hidden">
+  <div id="view-app">
 
     <nav class="tabs">
       <button type="button" class="tab-btn active" data-tab="expense">Registrar gasto</button>

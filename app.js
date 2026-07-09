@@ -1,5 +1,7 @@
 // Gestión de Gastos Personales — lógica de la app
 // Requiere config.js cargado antes (SUPABASE_URL, SUPABASE_ANON_KEY)
+// Sin autenticación: la app carga directamente; el acceso a datos lo permite
+// la política RLS para el rol anon (ver sql/02_acceso_abierto.sql).
 
 const state = {
   categories: [],
@@ -34,7 +36,9 @@ if (!isConfigured()) {
   throw new Error('Supabase no está configurado: revisa config.js');
 }
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// "db" y no "supabase": el script del CDN ya declara la global `supabase`
+// y redeclararla rompe todo el archivo con un SyntaxError silencioso.
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ---------- Utilidades ----------
 
@@ -48,79 +52,16 @@ function showMessage(el, text, type = 'info') {
   el.classList.remove('hidden');
 }
 
+// Fecha local en formato YYYY-MM-DD (sin pasar por UTC, que desplaza el día)
+function toLocalISO(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-// ---------- Autenticación ----------
-
-async function sendMagicLink(email) {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.href.split('#')[0] },
-  });
-  return error;
-}
-
-function setupAuthUI() {
-  const loginForm = document.getElementById('login-form');
-  const loginMessage = document.getElementById('login-message');
-
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('login-email').value.trim();
-    const submitBtn = loginForm.querySelector('button');
-    submitBtn.disabled = true;
-    const error = await sendMagicLink(email);
-    submitBtn.disabled = false;
-    if (error) {
-      showMessage(loginMessage, `Error: ${error.message}`, 'error');
-    } else {
-      showMessage(loginMessage, 'Revisa tu correo y haz clic en el enlace para acceder.', 'success');
-    }
-  });
-
-  document.getElementById('logout-btn').addEventListener('click', async () => {
-    await supabase.auth.signOut();
-  });
-}
-
-function showLoggedIn() {
-  document.getElementById('view-login').classList.add('hidden');
-  document.getElementById('view-app').classList.remove('hidden');
-  document.getElementById('logout-btn').classList.remove('hidden');
-}
-
-function showLoggedOut() {
-  document.getElementById('view-login').classList.remove('hidden');
-  document.getElementById('view-app').classList.add('hidden');
-  document.getElementById('logout-btn').classList.add('hidden');
-}
-
-async function initSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-    showLoggedIn();
-    await onLogin();
-  } else {
-    showLoggedOut();
-  }
-
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    if (session) {
-      showLoggedIn();
-      await onLogin();
-    } else {
-      showLoggedOut();
-    }
-  });
-}
-
-async function onLogin() {
-  await loadCategories();
-  await loadRecentExpenses();
-  setDefaultReportDates();
-  await loadReports();
+  return toLocalISO(new Date());
 }
 
 // ---------- Tabs ----------
@@ -140,7 +81,7 @@ function setupTabs() {
 // ---------- Categorías ----------
 
 async function loadCategories() {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('expense_categories')
     .select('id, name')
     .order('name', { ascending: true });
@@ -185,7 +126,7 @@ function setupExpenseForm() {
     };
 
     submitBtn.disabled = true;
-    const { error } = await supabase.from('expenses').insert(payload);
+    const { error } = await db.from('expenses').insert(payload);
     submitBtn.disabled = false;
 
     if (error) {
@@ -202,7 +143,7 @@ function setupExpenseForm() {
 }
 
 async function loadRecentExpenses() {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('expenses')
     .select('id, date, amount, description, provider, payment_method, expense_categories(name)')
     .order('date', { ascending: false })
@@ -245,7 +186,7 @@ function renderExpensesTable(tbody, rows, { deletable = false } = {}) {
     tbody.querySelectorAll('[data-delete-id]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         if (!confirm('¿Borrar este gasto?')) return;
-        const { error } = await supabase.from('expenses').delete().eq('id', btn.dataset.deleteId);
+        const { error } = await db.from('expenses').delete().eq('id', btn.dataset.deleteId);
         if (error) {
           alert(`Error al borrar: ${error.message}`);
           return;
@@ -261,7 +202,7 @@ function renderExpensesTable(tbody, rows, { deletable = false } = {}) {
 
 function setDefaultReportDates() {
   const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const firstOfMonth = toLocalISO(new Date(now.getFullYear(), now.getMonth(), 1));
   document.getElementById('report-date-from').value = firstOfMonth;
   document.getElementById('report-date-to').value = todayISO();
 }
@@ -278,7 +219,7 @@ async function loadReports() {
   const dateTo = document.getElementById('report-date-to').value;
   const categoryId = document.getElementById('report-category').value;
 
-  let query = supabase
+  let query = db
     .from('expenses')
     .select('id, date, amount, description, provider, payment_method, category_id, expense_categories(name)')
     .order('date', { ascending: false });
@@ -296,7 +237,7 @@ async function loadReports() {
 
   renderExpensesTable(document.querySelector('#filtered-expenses-table tbody'), expenses, { deletable: false });
 
-  const { data: budgetItems, error: budgetError } = await supabase
+  const { data: budgetItems, error: budgetError } = await db
     .from('budget_items')
     .select('category_id, planned_amount, expense_categories(name)');
 
@@ -371,10 +312,12 @@ function renderBudgetChart(rows) {
 
 // ---------- Init ----------
 
-document.addEventListener('DOMContentLoaded', () => {
-  setupAuthUI();
+document.addEventListener('DOMContentLoaded', async () => {
   setupTabs();
   setupExpenseForm();
   setupReportFilters();
-  initSession();
+  setDefaultReportDates();
+  await loadCategories();
+  await loadRecentExpenses();
+  await loadReports();
 });

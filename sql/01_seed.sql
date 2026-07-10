@@ -1,55 +1,48 @@
 -- =============================================================
 -- 01_seed.sql — Datos iniciales: categorías y presupuesto mensual
 -- Ejecutar en Supabase: Dashboard → SQL Editor → New query → pegar y Run
--- Es idempotente: se puede ejecutar varias veces sin duplicar datos.
+-- Se puede ejecutar varias veces: el paso 0 limpia lo anterior antes de
+-- volver a insertar, así la tabla queda solo con esta lista.
 -- =============================================================
 
--- 1) Categorías de gasto típicas de un hogar.
+-- 0) Borrar categorías y presupuesto previos.
+--    budget_items depende de expense_categories, por eso se borra primero.
+--    expenses.category_id queda a NULL en los gastos ya guardados (no se borran).
+delete from public.budget_items;
+delete from public.expense_categories;
+
+-- 1) Categorías de gasto.
 --    Añade, quita o renombra las que quieras antes de ejecutar.
 insert into public.expense_categories (name)
-select v.name
-from (values
-  ('Vivienda'),          -- alquiler / hipoteca / comunidad
-  ('Supermercado'),
-  ('Restaurantes y bares'),
-  ('Transporte'),        -- gasolina, transporte público, parking
-  ('Suministros'),       -- luz, agua, gas, internet, móvil
-  ('Salud'),
-  ('Ocio'),
+values
+  ('Gasolina'),
+  ('Compras / Viajes'),
+  ('Gastos coche / moto'),
   ('Ropa'),
-  ('Suscripciones'),     -- Netflix, Spotify, gimnasio...
-  ('Viajes'),
+  ('Comer fuera'),
+  ('Gastos diarios'),
+  ('Boda'),
   ('Regalos'),
-  ('Otros')
-) as v(name)
-where not exists (
-  select 1 from public.expense_categories c where c.name = v.name
-);
+  ('Otros');
 
 -- 2) Presupuesto mensual planificado por categoría.
 --    AJUSTA LOS IMPORTES a tu realidad antes de ejecutar.
 insert into public.budget_items (category_id, planned_amount)
 select c.id, v.amount
 from (values
-  ('Vivienda',             800.00),
-  ('Supermercado',         400.00),
-  ('Restaurantes y bares', 150.00),
-  ('Transporte',           120.00),
-  ('Suministros',          150.00),
-  ('Salud',                 50.00),
-  ('Ocio',                 100.00),
-  ('Ropa',                  60.00),
-  ('Suscripciones',         40.00),
-  ('Viajes',               100.00),
+  ('Gasolina',             100.00),
+  ('Compras / Viajes',     150.00),
+  ('Gastos coche / moto',  150.00),
+  ('Ropa',                  50.00),
+  ('Comer fuera',           75.00),
+  ('Gastos diarios',        75.00),
+  ('Boda',                1000.00),
   ('Regalos',               40.00),
   ('Otros',                 50.00)
 ) as v(name, amount)
-join public.expense_categories c on c.name = v.name
-where not exists (
-  select 1 from public.budget_items b where b.category_id = c.id
-);
+join public.expense_categories c on c.name = v.name;
 
--- Comprobación: debería devolver 12 categorías con su presupuesto
+-- Comprobación: debería devolver 9 categorías con su presupuesto
 select c.name, b.planned_amount
 from public.expense_categories c
 left join public.budget_items b on b.category_id = c.id

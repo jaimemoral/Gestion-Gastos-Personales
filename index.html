@@ -94,31 +94,63 @@
 
     <!-- VISTA REPORTES -->
     <section id="view-reports" class="view tab-panel">
-      <div class="card">
-        <h2>Filtros</h2>
-        <form id="report-filters" class="form-grid">
-          <div class="field">
-            <label for="report-date-from">Desde</label>
-            <input type="date" id="report-date-from">
+
+      <!-- Filtros: mes + rango personalizado + categorías -->
+      <div class="card filters-card">
+        <div class="month-nav">
+          <button type="button" id="month-prev" class="month-arrow" aria-label="Mes anterior">‹</button>
+          <span id="month-label" class="month-label"></span>
+          <button type="button" id="month-next" class="month-arrow" aria-label="Mes siguiente">›</button>
+        </div>
+
+        <details id="custom-range" class="extra-fields">
+          <summary>Rango de fechas personalizado</summary>
+          <div class="extra-fields-body">
+            <div class="range-grid">
+              <div class="field">
+                <label for="report-date-from">Desde</label>
+                <input type="date" id="report-date-from">
+              </div>
+              <div class="field">
+                <label for="report-date-to">Hasta</label>
+                <input type="date" id="report-date-to">
+              </div>
+            </div>
+            <div class="range-actions">
+              <button type="button" id="apply-range">Aplicar rango</button>
+              <button type="button" id="clear-range" class="btn-ghost hidden">Volver a vista mensual</button>
+            </div>
           </div>
-          <div class="field">
-            <label for="report-date-to">Hasta</label>
-            <input type="date" id="report-date-to">
-          </div>
-          <div class="field">
-            <label for="report-category">Categoría</label>
-            <select id="report-category">
-              <option value="">Todas</option>
-            </select>
-          </div>
-          <div class="field field-actions">
-            <button type="submit">Aplicar filtros</button>
-          </div>
-        </form>
+        </details>
+
+        <div id="category-chips" class="chips" aria-label="Filtro de categorías"></div>
       </div>
 
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <div class="kpi">
+          <span class="kpi-label">Total gastado</span>
+          <span class="kpi-value" id="kpi-total">—</span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Consumido s/ plan</span>
+          <span class="kpi-value" id="kpi-percent">—</span>
+          <span class="kpi-sub" id="kpi-planned-sub"></span>
+        </div>
+        <div class="kpi">
+          <span class="kpi-label">Ahorro del periodo</span>
+          <span class="kpi-value" id="kpi-savings">—</span>
+        </div>
+      </div>
+
+      <!-- Gráfico presupuesto vs gastado -->
       <div class="card">
-        <h2>Presupuesto vs. Gastado</h2>
+        <h2>Gasto por categoría</h2>
+        <div class="chart-legend">
+          <span><i class="key key-line"></i>Planificado</span>
+          <span><i class="key key-good"></i>Dentro de presupuesto</span>
+          <span><i class="key key-over"></i>Excedido</span>
+        </div>
         <div class="chart-wrap">
           <canvas id="budget-chart"></canvas>
         </div>
@@ -133,7 +165,7 @@
       </div>
 
       <div class="card">
-        <h2>Detalle de gastos filtrados</h2>
+        <h2>Detalle de gastos</h2>
         <div class="table-wrap">
           <table id="filtered-expenses-table">
             <thead>

@@ -6,6 +6,19 @@
 const state = {
   categories: [],
   budgetChart: null,
+  reportMonth: new Date(),      // mes visible en el dashboard
+  rangeMode: 'month',           // 'month' | 'custom'
+  customFrom: null,
+  customTo: null,
+  selectedCats: new Set(),      // ids de categoría filtradas; vacío = todas
+};
+
+// Colores del gráfico (validados para contraste y daltonismo)
+const CHART_COLORS = {
+  good: '#0ca30c',   // gasto dentro de presupuesto
+  over: '#d03b3b',   // presupuesto excedido
+  plan: '#52514e',   // línea de planificado
+  grid: '#e7ebf2',
 };
 
 function isConfigured() {
@@ -93,16 +106,49 @@ async function loadCategories() {
 
   state.categories = data || [];
 
-  const expenseSelect = document.getElementById('expense-category');
-  const reportSelect = document.getElementById('report-category');
-
-  expenseSelect.innerHTML = state.categories
+  document.getElementById('expense-category').innerHTML = state.categories
     .map((c) => `<option value="${c.id}">${c.name}</option>`)
     .join('');
 
-  reportSelect.innerHTML =
-    '<option value="">Todas</option>' +
-    state.categories.map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
+  renderCategoryChips();
+}
+
+// Chips de filtro por categoría (dashboard): tocar activa/desactiva
+function renderCategoryChips() {
+  const wrap = document.getElementById('category-chips');
+  const allActive = state.selectedCats.size === 0;
+  wrap.innerHTML = '';
+
+  const addChip = (label, active, onClick) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `chip${active ? ' active' : ''}`;
+    btn.textContent = label;
+    btn.addEventListener('click', onClick);
+    wrap.appendChild(btn);
+  };
+
+  addChip('Todas', allActive, () => {
+    state.selectedCats.clear();
+    renderCategoryChips();
+    loadReports();
+  });
+
+  state.categories.forEach((c) => {
+    addChip(c.name, state.selectedCats.has(c.id), () => {
+      if (state.selectedCats.has(c.id)) {
+        state.selectedCats.delete(c.id);
+      } else {
+        state.selectedCats.add(c.id);
+      }
+      // seleccionarlas todas equivale a no filtrar
+      if (state.selectedCats.size === state.categories.length) {
+        state.selectedCats.clear();
+      }
+      renderCategoryChips();
+      loadReports();
+    });
+  });
 }
 
 // ---------- Registro de gastos ----------
@@ -201,44 +247,91 @@ function renderExpensesTable(tbody, rows, { deletable = false } = {}) {
 
 // ---------- Reportes ----------
 
-function setDefaultReportDates() {
-  const now = new Date();
-  const firstOfMonth = toLocalISO(new Date(now.getFullYear(), now.getMonth(), 1));
-  document.getElementById('report-date-from').value = firstOfMonth;
-  document.getElementById('report-date-to').value = todayISO();
+// Rango de fechas activo: mes visible o rango personalizado
+function currentRange() {
+  if (state.rangeMode === 'custom') {
+    return { from: state.customFrom, to: state.customTo };
+  }
+  const y = state.reportMonth.getFullYear();
+  const m = state.reportMonth.getMonth();
+  return {
+    from: toLocalISO(new Date(y, m, 1)),
+    to: toLocalISO(new Date(y, m + 1, 0)),
+  };
+}
+
+function updateRangeUI() {
+  const label = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' })
+    .format(state.reportMonth);
+  document.getElementById('month-label').textContent =
+    label.charAt(0).toUpperCase() + label.slice(1);
+
+  const custom = state.rangeMode === 'custom';
+  document.getElementById('clear-range').classList.toggle('hidden', !custom);
+  document.querySelector('.month-nav').classList.toggle('inactive', custom);
+}
+
+function shiftMonth(delta) {
+  const y = state.reportMonth.getFullYear();
+  const m = state.reportMonth.getMonth();
+  state.reportMonth = new Date(y, m + delta, 1);
+  state.rangeMode = 'month';
+  updateRangeUI();
+  loadReports();
 }
 
 function setupReportFilters() {
-  document.getElementById('report-filters').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await loadReports();
+  document.getElementById('month-prev').addEventListener('click', () => shiftMonth(-1));
+  document.getElementById('month-next').addEventListener('click', () => shiftMonth(1));
+
+  document.getElementById('apply-range').addEventListener('click', () => {
+    const from = document.getElementById('report-date-from').value;
+    const to = document.getElementById('report-date-to').value;
+    if (!from || !to) return;
+    state.rangeMode = 'custom';
+    state.customFrom = from;
+    state.customTo = to;
+    updateRangeUI();
+    loadReports();
   });
+
+  document.getElementById('clear-range').addEventListener('click', () => {
+    state.rangeMode = 'month';
+    document.getElementById('custom-range').open = false;
+    updateRangeUI();
+    loadReports();
+  });
+
+  // prellenar el rango personalizado con el mes actual
+  const { from, to } = currentRange();
+  document.getElementById('report-date-from').value = from;
+  document.getElementById('report-date-to').value = to;
+}
+
+// Aplica el filtro de chips; con el set vacío pasa todo
+function matchesCategoryFilter(categoryId) {
+  return state.selectedCats.size === 0 || state.selectedCats.has(categoryId);
 }
 
 async function loadReports() {
-  const dateFrom = document.getElementById('report-date-from').value;
-  const dateTo = document.getElementById('report-date-to').value;
-  const categoryId = document.getElementById('report-category').value;
+  const { from, to } = currentRange();
 
   let query = db
     .from('expenses')
     .select('id, date, amount, description, provider, payment_method, category_id, expense_categories(name)')
     .order('date', { ascending: false });
 
-  if (dateFrom) query = query.gte('date', dateFrom);
-  if (dateTo) query = query.lte('date', dateTo);
-  if (categoryId) query = query.eq('category_id', categoryId);
+  if (from) query = query.gte('date', from);
+  if (to) query = query.lte('date', to);
 
-  const { data: expenses, error: expensesError } = await query;
+  const { data: allExpenses, error: expensesError } = await query;
 
   if (expensesError) {
     console.error('Error cargando gastos filtrados', expensesError);
     return;
   }
 
-  renderExpensesTable(document.querySelector('#filtered-expenses-table tbody'), expenses, { deletable: false });
-
-  const { data: budgetItems, error: budgetError } = await db
+  const { data: allBudgetItems, error: budgetError } = await db
     .from('budget_items')
     .select('category_id, planned_amount, expense_categories(name)');
 
@@ -247,23 +340,47 @@ async function loadReports() {
     return;
   }
 
-  renderBudgetComparison(budgetItems, expenses, categoryId);
+  // El filtro de categorías se aplica a KPIs, gráfico y tablas
+  const expenses = (allExpenses || []).filter((e) => matchesCategoryFilter(e.category_id));
+  const budgetItems = (allBudgetItems || []).filter((b) => matchesCategoryFilter(b.category_id));
+
+  renderExpensesTable(document.querySelector('#filtered-expenses-table tbody'), expenses, { deletable: false });
+  renderKPIs(budgetItems, expenses);
+  renderBudgetComparison(budgetItems, expenses);
 }
 
-function renderBudgetComparison(budgetItems, expenses, filterCategoryId) {
+function renderKPIs(budgetItems, expenses) {
+  const spent = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const planned = budgetItems.reduce((sum, b) => sum + Number(b.planned_amount), 0);
+  const pct = planned > 0 ? (spent / planned) * 100 : null;
+  const savings = planned - spent;
+
+  document.getElementById('kpi-total').textContent = formatCurrency(spent);
+
+  const pctEl = document.getElementById('kpi-percent');
+  pctEl.textContent = pct === null ? '—' : `${pct.toLocaleString('es-ES', { maximumFractionDigits: 0 })}%`;
+  pctEl.className = `kpi-value ${pct !== null && pct > 100 ? 'negative' : 'positive'}`;
+
+  document.getElementById('kpi-planned-sub').textContent =
+    planned > 0 ? `de ${formatCurrency(planned)} planificados` : 'sin presupuesto definido';
+
+  const savEl = document.getElementById('kpi-savings');
+  savEl.textContent = formatCurrency(savings);
+  savEl.className = `kpi-value ${savings < 0 ? 'negative' : 'positive'}`;
+}
+
+function renderBudgetComparison(budgetItems, expenses) {
   const spentByCategory = {};
   expenses.forEach((e) => {
     const key = e.category_id || 'none';
     spentByCategory[key] = (spentByCategory[key] || 0) + Number(e.amount);
   });
 
-  let rows = budgetItems
-    .filter((b) => !filterCategoryId || b.category_id === filterCategoryId)
-    .map((b) => ({
-      name: b.expense_categories?.name || '(sin categoría)',
-      planned: Number(b.planned_amount),
-      spent: spentByCategory[b.category_id] || 0,
-    }));
+  const rows = budgetItems.map((b) => ({
+    name: b.expense_categories?.name || '(sin categoría)',
+    planned: Number(b.planned_amount),
+    spent: spentByCategory[b.category_id] || 0,
+  }));
 
   rows.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -295,18 +412,66 @@ function renderBudgetChart(rows) {
     state.budgetChart.destroy();
   }
 
+  const barColors = rows.map((r) => (r.spent > r.planned ? CHART_COLORS.over : CHART_COLORS.good));
+
   state.budgetChart = new Chart(ctx, {
-    type: 'bar',
     data: {
       labels: rows.map((r) => r.name),
       datasets: [
-        { label: 'Planificado', data: rows.map((r) => r.planned), backgroundColor: '#93c5fd' },
-        { label: 'Gastado', data: rows.map((r) => r.spent), backgroundColor: '#f87171' },
+        {
+          type: 'line',
+          label: 'Planificado',
+          order: 0, // dibujada encima de las columnas
+          data: rows.map((r) => r.planned),
+          borderColor: CHART_COLORS.plan,
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: CHART_COLORS.plan,
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          fill: false,
+        },
+        {
+          type: 'bar',
+          label: 'Gastado',
+          order: 1,
+          data: rows.map((r) => r.spent),
+          backgroundColor: barColors,
+          maxBarThickness: 24,
+          borderRadius: { topLeft: 4, topRight: 4 },
+          borderSkipped: 'start',
+        },
       ],
     },
     options: {
       responsive: true,
-      scales: { y: { beginAtZero: true } },
+      maintainAspectRatio: false, // la altura la fija .chart-wrap
+      plugins: {
+        legend: { display: false }, // leyenda propia en HTML sobre el gráfico
+        tooltip: {
+          callbacks: {
+            label: (c) => `${c.dataset.label}: ${formatCurrency(c.parsed.y)}`,
+            afterBody: (items) => {
+              const r = rows[items[0].dataIndex];
+              return `Diferencia: ${formatCurrency(r.planned - r.spent)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: CHART_COLORS.grid },
+          ticks: {
+            callback: (v) => `${new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v)} €`,
+          },
+        },
+        x: {
+          grid: { display: false },
+          ticks: { autoSkip: false, maxRotation: 60 },
+        },
+      },
     },
   });
 }
@@ -317,7 +482,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupTabs();
   setupExpenseForm();
   setupReportFilters();
-  setDefaultReportDates();
+  updateRangeUI();
   await loadCategories();
   await loadRecentExpenses();
   await loadReports();

@@ -9,7 +9,13 @@
 <body>
 
 <header class="topbar">
-  <h1>Gestión de Gastos Personales</h1>
+  <div class="brand">
+    <span class="brand-mark">€</span>
+    <div class="brand-text">
+      <h1>Gestión de Gastos</h1>
+      <span class="brand-sub">Personales</span>
+    </div>
+  </div>
 </header>
 
 <main id="app">
@@ -23,42 +29,50 @@
 
     <!-- VISTA REGISTRO DE GASTO -->
     <section id="view-expense" class="view tab-panel active">
-      <div class="card">
+      <div class="card expense-card">
         <h2>Nuevo gasto</h2>
-        <form id="expense-form">
-          <div class="form-grid">
-            <div class="field">
-              <label for="expense-date">Fecha</label>
-              <input type="date" id="expense-date" required>
-            </div>
-            <div class="field">
-              <label for="expense-amount">Importe (€)</label>
-              <input type="number" id="expense-amount" step="0.01" min="0" required>
-            </div>
-            <div class="field">
-              <label for="expense-category">Categoría</label>
-              <select id="expense-category" required></select>
-            </div>
-            <div class="field">
-              <label for="expense-payment-method">Método de pago</label>
-              <select id="expense-payment-method" required>
-                <option value="Efectivo">Efectivo</option>
-                <option value="Tarjeta">Tarjeta</option>
-                <option value="Transferencia">Transferencia</option>
-                <option value="Bizum">Bizum</option>
-                <option value="Otro">Otro</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="expense-provider">Proveedor</label>
-              <input type="text" id="expense-provider" placeholder="Ej. Mercadona">
-            </div>
-            <div class="field field-wide">
-              <label for="expense-description">Descripción</label>
-              <input type="text" id="expense-description" placeholder="Detalle del gasto">
+        <form id="expense-form" class="expense-form">
+          <div class="field">
+            <label for="expense-date">Fecha</label>
+            <input type="date" id="expense-date" required>
+          </div>
+          <div class="field">
+            <label for="expense-category">Categoría</label>
+            <select id="expense-category" required></select>
+          </div>
+          <div class="field">
+            <label for="expense-amount">Importe</label>
+            <div class="amount-wrap">
+              <input type="number" id="expense-amount" step="0.01" min="0" inputmode="decimal" placeholder="0,00" required>
+              <span class="amount-symbol">€</span>
             </div>
           </div>
-          <button type="submit">Guardar gasto</button>
+
+          <details id="expense-extra" class="extra-fields">
+            <summary>Más detalles</summary>
+            <div class="extra-fields-body">
+              <div class="field">
+                <label for="expense-payment-method">Método de pago</label>
+                <select id="expense-payment-method" required>
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Tarjeta">Tarjeta</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Bizum">Bizum</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="expense-provider">Proveedor</label>
+                <input type="text" id="expense-provider" placeholder="Ej. Mercadona">
+              </div>
+              <div class="field">
+                <label for="expense-description">Descripción</label>
+                <input type="text" id="expense-description" placeholder="Detalle del gasto">
+              </div>
+            </div>
+          </details>
+
+          <button type="submit" class="btn-block">Guardar gasto</button>
         </form>
         <p id="expense-message" class="message hidden"></p>
       </div>

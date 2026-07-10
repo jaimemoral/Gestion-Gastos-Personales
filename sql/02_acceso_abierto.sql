@@ -38,7 +38,11 @@ create policy "open_access_all" on public.expenses
   for all to anon, authenticated
   using (true) with check (true);
 
--- 4) Comprobación: debe listar una política "open_access_all" por tabla
+-- 4) Sin login no hay usuario autenticado: created_by pasa a ser opcional.
+--    (Con NOT NULL, todos los inserts desde la app fallan.)
+alter table public.expenses alter column created_by drop not null;
+
+-- 5) Comprobación: debe listar una política "open_access_all" por tabla
 select tablename, policyname, cmd, roles
 from pg_policies
 where schemaname = 'public'

@@ -137,6 +137,7 @@ function setupExpenseForm() {
     showMessage(messageEl, 'Gasto guardado correctamente.', 'success');
     form.reset();
     document.getElementById('expense-date').value = todayISO();
+    document.getElementById('expense-extra').open = false;
     await loadRecentExpenses();
     await loadReports();
   });

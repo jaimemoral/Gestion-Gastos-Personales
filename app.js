@@ -212,6 +212,19 @@ function setupTabs() {
 
 // ---------- Categorías ----------
 
+// "Gastos diarios" es la categoría que más se usa: va primero para que sea
+// la opción seleccionada por defecto en el desplegable de registro (antes
+// caía "Boda" por delante, siendo alfabético y la que menos se usa).
+const DEFAULT_FIRST_CATEGORY = 'Gastos diarios';
+
+function sortCategoriesForDefault(categories) {
+  return [...categories].sort((a, b) => {
+    if (a.name === DEFAULT_FIRST_CATEGORY) return -1;
+    if (b.name === DEFAULT_FIRST_CATEGORY) return 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 async function loadCategories() {
   const { data, error } = await db
     .from('expense_categories')
@@ -223,7 +236,7 @@ async function loadCategories() {
     return;
   }
 
-  state.categories = data || [];
+  state.categories = sortCategoriesForDefault(data || []);
 
   document.getElementById('expense-category').innerHTML = state.categories
     .map((c) => `<option value="${c.id}">${c.name}</option>`)

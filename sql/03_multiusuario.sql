@@ -76,6 +76,13 @@ alter table public.budget_items
 
 create index if not exists budget_items_user_id_idx on public.budget_items(user_id);
 
+-- Del modelo anterior (un presupuesto por categoría, sin persona) queda
+-- una restricción UNIQUE solo sobre category_id: bloquearía tener una fila
+-- de Rosa y otra de Jaime para la misma categoría. Se sustituye por la
+-- unicidad (user_id, category_id) en sql/04_finalizar_presupuesto.sql.
+alter table public.budget_items
+  drop constraint if exists budget_items_category_id_key;
+
 -- Nota: la unicidad (una fila por persona+categoría) y el NOT NULL de
 -- user_id se aplican en sql/04_finalizar_presupuesto.sql, DESPUÉS de
 -- re-sembrar los datos con sql/01_seed.sql (los presupuestos antiguos no

@@ -236,9 +236,11 @@ async function loadCategories() {
     return;
   }
 
-  state.categories = sortCategoriesForDefault(data || []);
+  // state.categories se queda alfabético: lo usan los chips de Reportes.
+  // El desplegable de registro usa su propio orden (Gastos diarios primero).
+  state.categories = data || [];
 
-  document.getElementById('expense-category').innerHTML = state.categories
+  document.getElementById('expense-category').innerHTML = sortCategoriesForDefault(state.categories)
     .map((c) => `<option value="${c.id}">${c.name}</option>`)
     .join('');
 

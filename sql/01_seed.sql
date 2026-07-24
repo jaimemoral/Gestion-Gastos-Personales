@@ -36,24 +36,24 @@ values
 insert into public.budget_items (category_id, user_id, planned_amount)
 select c.id, u.id, v.amount
 from (values
-  ('PERSONA_1', 'Gasolina',             100.00),
-  ('PERSONA_1', 'Compras / Viajes',     150.00),
-  ('PERSONA_1', 'Gastos coche / moto',  150.00),
-  ('PERSONA_1', 'Ropa',                  50.00),
-  ('PERSONA_1', 'Comer fuera',           75.00),
-  ('PERSONA_1', 'Gastos diarios',        75.00),
-  ('PERSONA_1', 'Boda',                1000.00),
-  ('PERSONA_1', 'Regalos',               40.00),
-  ('PERSONA_1', 'Otros',                 50.00),
-  ('PERSONA_2', 'Gasolina',             100.00),
-  ('PERSONA_2', 'Compras / Viajes',     150.00),
-  ('PERSONA_2', 'Gastos coche / moto',  150.00),
-  ('PERSONA_2', 'Ropa',                  50.00),
-  ('PERSONA_2', 'Comer fuera',           75.00),
-  ('PERSONA_2', 'Gastos diarios',        75.00),
-  ('PERSONA_2', 'Boda',                1000.00),
-  ('PERSONA_2', 'Regalos',               40.00),
-  ('PERSONA_2', 'Otros',                 50.00)
+  ('Jaime', 'Gasolina',             100.00),
+  ('Jaime', 'Compras / Viajes',     150.00),
+  ('Jaime', 'Gastos coche / moto',  150.00),
+  ('Jaime', 'Ropa',                  50.00),
+  ('Jaime', 'Comer fuera',           75.00),
+  ('Jaime', 'Gastos diarios',        75.00),
+  ('Jaime', 'Boda',                1000.00),
+  ('Jaime', 'Regalos',               40.00),
+  ('Jaime', 'Otros',                 50.00),
+  ('Rosa',  'Gasolina',             100.00),
+  ('Rosa',  'Compras / Viajes',     150.00),
+  ('Rosa',  'Gastos coche / moto',  150.00),
+  ('Rosa',  'Ropa',                  50.00),
+  ('Rosa',  'Comer fuera',           75.00),
+  ('Rosa',  'Gastos diarios',        75.00),
+  ('Rosa',  'Boda',                1000.00),
+  ('Rosa',  'Regalos',               40.00),
+  ('Rosa',  'Otros',                 50.00)
 ) as v(user_name, category_name, amount)
 join public.expense_categories c on c.name = v.category_name
 join public.app_users u on u.name = v.user_name;

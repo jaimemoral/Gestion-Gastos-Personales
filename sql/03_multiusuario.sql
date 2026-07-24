@@ -9,9 +9,7 @@
 --     cada usuario tiene su propio límite en "Ropa", "Gasolina", etc.
 --   - Identificación por selector de perfil simple (sin contraseñas):
 --     el usuario elige su nombre en la app y el dispositivo lo recuerda.
---
--- ⚠️ ANTES DE EJECUTAR: sustituye 'PERSONA_1' y 'PERSONA_2' (líneas ~30)
--- por los nombres reales de los dos usuarios.
+--   - Los gastos ya registrados hasta ahora se asignan todos a Jaime.
 --
 -- Es idempotente: se puede ejecutar varias veces sin duplicar nada.
 -- =============================================================
@@ -31,18 +29,15 @@ create policy "open_access_all" on public.app_users
   for all to anon, authenticated
   using (true) with check (true);
 
--- 2) Los dos usuarios fijos. EDITA los nombres antes de ejecutar.
+-- 2) Los dos usuarios fijos.
 insert into public.app_users (name)
 select v.name
-from (values ('PERSONA_1'), ('PERSONA_2')) as v(name)
+from (values ('Rosa'), ('Jaime')) as v(name)
 where not exists (
   select 1 from public.app_users u where u.name = v.name
 );
 
 -- 3) expenses: renombra created_by -> user_id y lo enlaza a app_users.
---    Los gastos ya registrados (sin usuario asignado) quedan a NULL:
---    se siguen sumando en la vista "Todos", pero no aparecen en el
---    filtro individual de ninguna persona hasta que se les asigne uno.
 do $$
 begin
   if exists (
@@ -63,6 +58,13 @@ alter table public.expenses
 
 create index if not exists expenses_user_id_idx on public.expenses(user_id);
 
+-- 3b) Los gastos registrados antes de esta migración no tienen usuario:
+--     se asignan todos a Jaime, tal y como se pidió. Idempotente: una vez
+--     asignados, no quedan NULL y esta línea deja de tener efecto.
+update public.expenses
+set user_id = (select id from public.app_users where name = 'Jaime')
+where user_id is null;
+
 -- 4) budget_items: añade user_id. A partir de ahora cada fila es
 --    "el presupuesto de ESTA persona en ESTA categoría".
 alter table public.budget_items
@@ -71,9 +73,12 @@ alter table public.budget_items
 create index if not exists budget_items_user_id_idx on public.budget_items(user_id);
 
 -- Nota: la unicidad (una fila por persona+categoría) y el NOT NULL de
--- user_id se aplican en el paso 5, DESPUÉS de re-sembrar los datos con
--- sql/01_seed.sql (los presupuestos antiguos no tienen user_id y
--- romperían estas restricciones si se aplicaran ahora).
+-- user_id se aplican en sql/04_finalizar_presupuesto.sql, DESPUÉS de
+-- re-sembrar los datos con sql/01_seed.sql (los presupuestos antiguos no
+-- tienen user_id y romperían esas restricciones si se aplicaran ahora).
 
--- 5) Comprobación: deberías ver la tabla app_users con tus 2 usuarios
+-- 5) Comprobación: deberías ver Rosa y Jaime
 select * from public.app_users order by created_at;
+
+-- 6) Comprobación: no debería quedar ningún gasto con user_id NULL
+select count(*) as gastos_sin_asignar from public.expenses where user_id is null;

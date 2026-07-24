@@ -38,6 +38,9 @@ where not exists (
 );
 
 -- 3) expenses: renombra created_by -> user_id y lo enlaza a app_users.
+--    La columna original es "text" (no "uuid"), así que hay que convertir
+--    el tipo antes de poder enlazarla por FK. Es seguro: todas las filas
+--    actuales la tienen a NULL (comprobado), no hay valores que perder.
 do $$
 begin
   if exists (
@@ -49,6 +52,7 @@ begin
 end $$;
 
 alter table public.expenses alter column user_id drop default;
+alter table public.expenses alter column user_id type uuid using user_id::uuid;
 
 alter table public.expenses
   drop constraint if exists expenses_user_id_fkey;

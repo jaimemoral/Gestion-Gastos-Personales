@@ -16,15 +16,24 @@ const state = {
   users: [],                    // perfiles (Rosa, Jaime...) desde app_users
   activeUserId: null,           // quién soy: se usa para registrar gastos
   dashboardUserFilter: 'mine',  // 'mine' (solo activeUserId) | 'all' (Rosa+Jaime)
+  trendYear: new Date().getFullYear(), // año visible en Evolución mensual
+  trendChart: null,
 };
 
-// Colores del gráfico (validados para contraste y daltonismo)
+const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+// Colores del gráfico (paleta de estado validada: contraste + daltonismo)
 const CHART_COLORS = {
-  good: '#0ca30c',   // gasto dentro de presupuesto
-  over: '#d03b3b',   // presupuesto excedido
-  plan: '#52514e',   // línea de planificado
+  good: '#0ca30c',      // gasto dentro de presupuesto
+  warning: '#fab219',   // ≥80% del presupuesto consumido
+  over: '#d03b3b',      // presupuesto excedido
+  plan: '#52514e',      // línea de planificado
   grid: '#e7ebf2',
+  trendLine: '#2563eb',
+  trendFill: 'rgba(37, 99, 235, 0.08)',
 };
+
+const BUDGET_WARNING_THRESHOLD = 80; // % de presupuesto consumido a partir del cual se avisa
 
 function isConfigured() {
   return (
@@ -245,6 +254,7 @@ async function loadCategories() {
     .join('');
 
   renderCategoryChips();
+  renderCategoryList();
 }
 
 // Chips de filtro por categoría (dashboard): tocar activa/desactiva
@@ -253,11 +263,12 @@ function renderCategoryChips() {
   const allActive = state.selectedCats.size === 0;
   wrap.innerHTML = '';
 
-  const addChip = (label, active, onClick) => {
+  const addChip = (label, active, onClick, categoryId) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `chip${active ? ' active' : ''}`;
     btn.textContent = label;
+    if (categoryId) btn.dataset.categoryId = categoryId;
     btn.addEventListener('click', onClick);
     wrap.appendChild(btn);
   };
@@ -281,8 +292,150 @@ function renderCategoryChips() {
       }
       renderCategoryChips();
       loadReports();
-    });
+    }, c.id);
   });
+}
+
+// Pinta cada chip de categoría según su % de presupuesto consumido (mismos
+// datos que ya calcula renderBudgetComparison, sin volver a consultar la BD)
+function updateCategoryChipStatus(rows) {
+  const statusByCategory = {};
+  rows.forEach((r) => {
+    if (!r.categoryId || r.planned <= 0) return;
+    const pct = (r.spent / r.planned) * 100;
+    statusByCategory[r.categoryId] = pct > 100 ? 'over' : pct >= BUDGET_WARNING_THRESHOLD ? 'warning' : 'ok';
+  });
+
+  document.querySelectorAll('#category-chips .chip[data-category-id]').forEach((chip) => {
+    chip.classList.remove('chip-warning', 'chip-over');
+    const status = statusByCategory[chip.dataset.categoryId];
+    if (status === 'warning') chip.classList.add('chip-warning');
+    if (status === 'over') chip.classList.add('chip-over');
+  });
+}
+
+// ---------- Gestión de categorías (pestaña Categorías) ----------
+
+function setupCategoryForm() {
+  const form = document.getElementById('category-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('new-category-name');
+    const messageEl = document.getElementById('category-message');
+    const name = input.value.trim();
+    if (!name) return;
+
+    const exists = state.categories.some((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (exists) {
+      showMessage(messageEl, `Ya existe una categoría llamada "${name}".`, 'error');
+      return;
+    }
+
+    const submitBtn = form.querySelector('button');
+    submitBtn.disabled = true;
+    const { error } = await db.from('expense_categories').insert({ name });
+    submitBtn.disabled = false;
+
+    if (error) {
+      showMessage(messageEl, `Error al crear la categoría: ${error.message}`, 'error');
+      return;
+    }
+
+    showMessage(
+      messageEl,
+      `Categoría "${name}" creada. Recuerda añadir su presupuesto por persona en Supabase si quieres que aparezca en el gráfico de Reportes.`,
+      'success'
+    );
+    form.reset();
+    await loadCategories();
+    renderCategoryList();
+  });
+}
+
+function renderCategoryList() {
+  const list = document.getElementById('category-list');
+  list.innerHTML = '';
+
+  if (state.categories.length === 0) {
+    list.innerHTML = '<li class="muted">Sin categorías todavía.</li>';
+    return;
+  }
+
+  state.categories.forEach((c) => {
+    const li = document.createElement('li');
+    li.dataset.categoryId = c.id;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'category-name';
+    nameSpan.textContent = c.name;
+
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'category-edit-btn';
+    editBtn.textContent = '✎';
+    editBtn.setAttribute('aria-label', `Renombrar ${c.name}`);
+    editBtn.addEventListener('click', () => startCategoryRename(li, c));
+
+    li.appendChild(nameSpan);
+    li.appendChild(editBtn);
+    list.appendChild(li);
+  });
+}
+
+function startCategoryRename(li, category) {
+  const messageEl = document.getElementById('category-message');
+  li.innerHTML = '';
+
+  const row = document.createElement('div');
+  row.className = 'category-edit-row';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = category.name;
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.textContent = 'Guardar';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'btn-ghost';
+  cancelBtn.textContent = 'Cancelar';
+
+  saveBtn.addEventListener('click', async () => {
+    const newName = input.value.trim();
+    if (!newName) return;
+
+    const duplicate = state.categories.some(
+      (c) => c.id !== category.id && c.name.toLowerCase() === newName.toLowerCase()
+    );
+    if (duplicate) {
+      showMessage(messageEl, `Ya existe una categoría llamada "${newName}".`, 'error');
+      return;
+    }
+
+    saveBtn.disabled = true;
+    const { error } = await db.from('expense_categories').update({ name: newName }).eq('id', category.id);
+    saveBtn.disabled = false;
+
+    if (error) {
+      showMessage(messageEl, `Error al renombrar: ${error.message}`, 'error');
+      return;
+    }
+
+    showMessage(messageEl, `Categoría renombrada a "${newName}".`, 'success');
+    await loadCategories();
+    renderCategoryList();
+    await loadReports();
+  });
+
+  cancelBtn.addEventListener('click', () => renderCategoryList());
+
+  row.appendChild(input);
+  row.appendChild(saveBtn);
+  row.appendChild(cancelBtn);
+  li.appendChild(row);
+  input.focus();
 }
 
 // ---------- Registro de gastos ----------
@@ -321,7 +474,65 @@ function setupExpenseForm() {
     document.getElementById('expense-extra').open = false;
     await loadRecentExpenses();
     await loadReports();
+    await checkBudgetWarning(payload.category_id);
   });
+}
+
+// Rango del mes natural en curso (independiente del mes que se esté
+// viendo en Reportes: el aviso siempre habla de "este mes").
+function currentMonthRange() {
+  const now = new Date();
+  return {
+    from: toLocalISO(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to: toLocalISO(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+  };
+}
+
+// Tras guardar un gasto, avisa si esa categoría (para el perfil activo)
+// llega al 80% de su presupuesto mensual, antes de que se exceda del todo.
+async function checkBudgetWarning(categoryId) {
+  const el = document.getElementById('budget-warning-message');
+  el.classList.add('hidden');
+  if (!categoryId) return;
+
+  const { data: budgetRow, error: budgetError } = await db
+    .from('budget_items')
+    .select('planned_amount')
+    .eq('user_id', state.activeUserId)
+    .eq('category_id', categoryId)
+    .maybeSingle();
+
+  if (budgetError || !budgetRow || Number(budgetRow.planned_amount) <= 0) return;
+
+  const { from, to } = currentMonthRange();
+  const { data: monthExpenses, error: expensesError } = await db
+    .from('expenses')
+    .select('amount')
+    .eq('user_id', state.activeUserId)
+    .eq('category_id', categoryId)
+    .gte('date', from)
+    .lte('date', to);
+
+  if (expensesError) return;
+
+  const spent = (monthExpenses || []).reduce((sum, e) => sum + Number(e.amount), 0);
+  const planned = Number(budgetRow.planned_amount);
+  const pct = (spent / planned) * 100;
+  const categoryName = state.categories.find((c) => c.id === categoryId)?.name || 'esta categoría';
+
+  if (pct > 100) {
+    showMessage(
+      el,
+      `Has superado el presupuesto mensual de "${categoryName}": ${formatCurrency(spent)} de ${formatCurrency(planned)} (${pct.toFixed(0)}%).`,
+      'error'
+    );
+  } else if (pct >= BUDGET_WARNING_THRESHOLD) {
+    showMessage(
+      el,
+      `Vas por el ${pct.toFixed(0)}% del presupuesto mensual de "${categoryName}" (${formatCurrency(spent)} de ${formatCurrency(planned)}).`,
+      'warning'
+    );
+  }
 }
 
 async function loadRecentExpenses() {
@@ -489,6 +700,7 @@ async function loadReports() {
   renderExpensesTable(document.querySelector('#filtered-expenses-table tbody'), expenses, { deletable: false });
   renderKPIs(budgetItems, expenses);
   renderBudgetComparison(budgetItems, expenses);
+  await loadMonthlyTrend();
 }
 
 function renderKPIs(budgetItems, expenses) {
@@ -530,6 +742,7 @@ function renderBudgetComparison(budgetItems, expenses) {
   });
 
   const rows = Object.entries(plannedByCategory).map(([categoryId, v]) => ({
+    categoryId,
     name: v.name,
     planned: v.planned,
     spent: spentByCategory[categoryId] || 0,
@@ -544,11 +757,13 @@ function renderBudgetComparison(budgetItems, expenses) {
   } else {
     rows.forEach((r) => {
       const diff = r.planned - r.spent;
+      const pct = r.planned > 0 ? (r.spent / r.planned) * 100 : 0;
+      const spentClass = pct > 100 ? 'negative' : pct >= BUDGET_WARNING_THRESHOLD ? 'warning-text' : 'positive';
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${r.name}</td>
         <td>${formatCurrency(r.planned)}</td>
-        <td>${formatCurrency(r.spent)}</td>
+        <td class="${spentClass}">${formatCurrency(r.spent)}</td>
         <td class="${diff < 0 ? 'negative' : 'positive'}">${formatCurrency(diff)}</td>
       `;
       tbody.appendChild(tr);
@@ -556,6 +771,7 @@ function renderBudgetComparison(budgetItems, expenses) {
   }
 
   renderBudgetChart(rows);
+  updateCategoryChipStatus(rows);
 }
 
 function renderBudgetChart(rows) {
@@ -565,7 +781,13 @@ function renderBudgetChart(rows) {
     state.budgetChart.destroy();
   }
 
-  const barColors = rows.map((r) => (r.spent > r.planned ? CHART_COLORS.over : CHART_COLORS.good));
+  const barColors = rows.map((r) => {
+    if (r.planned <= 0) return CHART_COLORS.good;
+    const pct = (r.spent / r.planned) * 100;
+    if (pct > 100) return CHART_COLORS.over;
+    if (pct >= BUDGET_WARNING_THRESHOLD) return CHART_COLORS.warning;
+    return CHART_COLORS.good;
+  });
 
   state.budgetChart = new Chart(ctx, {
     data: {
@@ -629,12 +851,117 @@ function renderBudgetChart(rows) {
   });
 }
 
+// ---------- Evolución mensual (gráfico de línea, año completo) ----------
+
+function updateTrendYearLabel() {
+  document.getElementById('trend-year-label').textContent = String(state.trendYear);
+}
+
+function setupTrendNav() {
+  document.getElementById('trend-year-prev').addEventListener('click', () => {
+    state.trendYear -= 1;
+    updateTrendYearLabel();
+    loadMonthlyTrend();
+  });
+  document.getElementById('trend-year-next').addEventListener('click', () => {
+    state.trendYear += 1;
+    updateTrendYearLabel();
+    loadMonthlyTrend();
+  });
+  updateTrendYearLabel();
+}
+
+// Respeta los mismos filtros de categoría/perfil que el resto del dashboard,
+// pero ignora el mes/rango seleccionado arriba: siempre mira el año entero.
+async function loadMonthlyTrend() {
+  const from = `${state.trendYear}-01-01`;
+  const to = `${state.trendYear}-12-31`;
+
+  const { data, error } = await db
+    .from('expenses')
+    .select('date, amount, category_id, user_id')
+    .gte('date', from)
+    .lte('date', to);
+
+  if (error) {
+    console.error('Error cargando evolución mensual', error);
+    return;
+  }
+
+  const totalsByMonth = Array(12).fill(0);
+  (data || [])
+    .filter((e) => matchesCategoryFilter(e.category_id) && matchesUserFilter(e.user_id))
+    .forEach((e) => {
+      const monthIndex = Number(e.date.slice(5, 7)) - 1; // string directo: sin líos de zona horaria
+      totalsByMonth[monthIndex] += Number(e.amount);
+    });
+
+  renderTrendChart(totalsByMonth);
+}
+
+function renderTrendChart(totalsByMonth) {
+  const ctx = document.getElementById('trend-chart');
+
+  if (state.trendChart) {
+    state.trendChart.destroy();
+  }
+
+  state.trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: MONTH_LABELS,
+      datasets: [
+        {
+          label: 'Gasto total',
+          data: totalsByMonth,
+          borderColor: CHART_COLORS.trendLine,
+          backgroundColor: CHART_COLORS.trendFill,
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: CHART_COLORS.trendLine,
+          pointBorderColor: '#ffffff',
+          pointBorderWidth: 2,
+          fill: true,
+          tension: 0.25,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }, // una sola serie: el título de la tarjeta ya dice qué es
+        tooltip: {
+          callbacks: {
+            label: (c) => formatCurrency(c.parsed.y),
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: CHART_COLORS.grid },
+          ticks: {
+            callback: (v) => `${new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(v)} €`,
+          },
+        },
+        x: {
+          grid: { display: false },
+        },
+      },
+    },
+  });
+}
+
 // ---------- Init ----------
 
 document.addEventListener('DOMContentLoaded', async () => {
   setupTabs();
   setupExpenseForm();
   setupReportFilters();
+  setupTrendNav();
+  setupCategoryForm();
   updateRangeUI();
 
   await loadUsers();

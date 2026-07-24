@@ -38,6 +38,7 @@
     <nav class="tabs">
       <button type="button" class="tab-btn active" data-tab="expense">Registrar gasto</button>
       <button type="button" class="tab-btn" data-tab="reports">Reportes</button>
+      <button type="button" class="tab-btn" data-tab="categories">Categorías</button>
     </nav>
 
     <!-- VISTA REGISTRO DE GASTO -->
@@ -91,6 +92,7 @@
           <button type="submit" class="btn-block">Guardar gasto</button>
         </form>
         <p id="expense-message" class="message hidden"></p>
+        <p id="budget-warning-message" class="message hidden"></p>
       </div>
 
       <div class="card">
@@ -165,6 +167,7 @@
         <div class="chart-legend">
           <span><i class="key key-line"></i>Planificado</span>
           <span><i class="key key-good"></i>Dentro de presupuesto</span>
+          <span><i class="key key-warning"></i>Cerca del límite (≥80%)</span>
           <span><i class="key key-over"></i>Excedido</span>
         </div>
         <div class="chart-wrap">
@@ -180,6 +183,19 @@
         </div>
       </div>
 
+      <!-- Evolución mensual del gasto a lo largo del año -->
+      <div class="card">
+        <h2>Evolución mensual</h2>
+        <div class="month-nav">
+          <button type="button" id="trend-year-prev" class="month-arrow" aria-label="Año anterior">‹</button>
+          <span id="trend-year-label" class="month-label"></span>
+          <button type="button" id="trend-year-next" class="month-arrow" aria-label="Año siguiente">›</button>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="trend-chart"></canvas>
+        </div>
+      </div>
+
       <div class="card">
         <h2>Detalle de gastos</h2>
         <div class="table-wrap">
@@ -192,6 +208,27 @@
             <tbody></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- VISTA CATEGORÍAS -->
+    <section id="view-categories" class="view tab-panel">
+      <div class="card">
+        <h2>Nueva categoría</h2>
+        <form id="category-form" class="category-form">
+          <div class="field">
+            <label for="new-category-name">Nombre</label>
+            <input type="text" id="new-category-name" placeholder="Ej. Mascotas" required>
+          </div>
+          <button type="submit">Añadir categoría</button>
+        </form>
+        <p id="category-message" class="message hidden"></p>
+      </div>
+
+      <div class="card">
+        <h2>Categorías existentes</h2>
+        <p class="muted">Toca el lápiz para renombrar una categoría. El presupuesto de cada persona para categorías nuevas se define aparte, en Supabase.</p>
+        <ul id="category-list" class="category-list"></ul>
       </div>
     </section>
 

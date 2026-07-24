@@ -437,6 +437,11 @@ button:disabled {
   color: #1e40af;
 }
 
+.message.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 /* ---------- Tablas ---------- */
 
 .table-wrap {
@@ -480,6 +485,11 @@ tbody tr:last-child td {
 
 .negative {
   color: var(--danger);
+  font-weight: 600;
+}
+
+.warning-text {
+  color: #92400e;
   font-weight: 600;
 }
 
@@ -605,6 +615,39 @@ tbody tr:last-child td {
   color: #fff;
 }
 
+/* Estado de presupuesto: se aplica además de .active, no en su lugar */
+.chip.chip-warning {
+  border-color: #fde68a;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.chip.chip-warning:hover {
+  background: #fde68a;
+}
+
+.chip.chip-warning.active {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #fff;
+}
+
+.chip.chip-over {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.chip.chip-over:hover {
+  background: #fecaca;
+}
+
+.chip.chip-over.active {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+
 /* ---------- Dashboard: KPIs ---------- */
 
 .kpi-grid {
@@ -670,7 +713,7 @@ tbody tr:last-child td {
   border-top: 2px solid #52514e;
 }
 
-.key-good, .key-over {
+.key-good, .key-warning, .key-over {
   width: 11px;
   height: 11px;
   border-radius: 3px;
@@ -680,11 +723,89 @@ tbody tr:last-child td {
   background: #0ca30c;
 }
 
+.key-warning {
+  background: #fab219;
+}
+
 .key-over {
   background: #d03b3b;
 }
 
 /* ---------- Móvil ---------- */
+
+/* ---------- Gestión de categorías ---------- */
+
+.category-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.category-form .field {
+  flex: 1;
+  min-width: 180px;
+}
+
+.category-form button {
+  margin-top: 0;
+}
+
+.category-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.category-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.category-list .category-name {
+  font-weight: 600;
+}
+
+.category-list .category-edit-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.category-list .category-edit-btn:hover {
+  color: var(--primary);
+}
+
+.category-list .category-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.category-list .category-edit-row input {
+  flex: 1;
+}
+
+.category-list .category-edit-row button {
+  margin-top: 0;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
 
 @media (max-width: 640px) {
   #app {
@@ -705,5 +826,11 @@ tbody tr:last-child td {
 
   .kpi-value {
     font-size: 1.25rem;
+  }
+
+  /* 3 pestañas en poco ancho: texto más compacto para que quepan en una línea */
+  .tab-btn {
+    padding: 0.5rem 0.35rem;
+    font-size: 0.78rem;
   }
 }

@@ -186,6 +186,20 @@ input:focus, select:focus {
   background: #fff;
 }
 
+/* input[type=date]: el icono de calendario nativo (iOS/Android) se dibuja
+   pegado al borde derecho: sin este hueco extra, el radio del borde lo recorta
+   visualmente en algunos navegadores móviles. */
+input[type="date"] {
+  padding-right: 2.2rem;
+  min-height: 3rem;
+}
+
+/* En un contenedor flex, un input puede negarse a encogerse por debajo de su
+   ancho de contenido nativo (marcado en iOS Safari) y desbordar la tarjeta. */
+.field {
+  min-width: 0;
+}
+
 button {
   background: var(--primary);
   color: #fff;

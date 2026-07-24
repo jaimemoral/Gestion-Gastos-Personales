@@ -1,23 +1,21 @@
 -- =============================================================
 -- 01_seed.sql — Datos iniciales: categorías y presupuesto mensual
 -- Ejecutar en Supabase: Dashboard → SQL Editor → New query → pegar y Run
--- Se puede ejecutar varias veces: el paso 0 limpia lo anterior antes de
--- volver a insertar, así la tabla queda solo con esta lista.
 --
 -- ⚠️ REQUIERE haber ejecutado antes sql/03_multiusuario.sql (crea la
 -- tabla app_users y la columna budget_items.user_id que se usan aquí).
+--
+-- Seguro de re-ejecutar. IMPORTANTE: este script ya NO borra las
+-- categorías. Borrarlas rompía el enlace de los gastos históricos
+-- (category_id pasaba a NULL). Ahora las categorías solo se AÑADEN si
+-- faltan, conservando sus identificadores y los gastos asociados.
 -- =============================================================
 
--- 0) Borrar categorías y presupuesto previos.
---    budget_items depende de expense_categories, por eso se borra primero.
---    expenses.category_id queda a NULL en los gastos ya guardados (no se borran).
-delete from public.budget_items;
-delete from public.expense_categories;
-
--- 1) Categorías de gasto.
---    Añade, quita o renombra las que quieras antes de ejecutar.
+-- 1) Categorías de gasto: se insertan solo las que aún no existan (por
+--    nombre). Renombrar o borrar categorías se hace a mano, con cuidado.
 insert into public.expense_categories (name)
-values
+select v.name
+from (values
   ('Gasolina'),
   ('Compras / Viajes'),
   ('Gastos coche / moto'),
@@ -26,13 +24,18 @@ values
   ('Gastos diarios'),
   ('Boda'),
   ('Regalos'),
-  ('Otros');
+  ('Otros')
+) as v(name)
+where not exists (
+  select 1 from public.expense_categories c where c.name = v.name
+);
 
 -- 2) Presupuesto mensual planificado, POR PERSONA y categoría.
---    AJUSTA LOS IMPORTES a la realidad de cada persona antes de ejecutar
---    (los valores de abajo duplican el presupuesto anterior en ambas
---    personas como punto de partida; cámbialos como necesites).
---    Los nombres deben coincidir exactamente con los de app_users.
+--    Se re-siembra por completo: borrar budget_items es seguro (ninguna
+--    otra tabla depende de él). AJUSTA LOS IMPORTES a la realidad de cada
+--    persona antes de ejecutar. Los nombres deben coincidir con app_users.
+delete from public.budget_items;
+
 insert into public.budget_items (category_id, user_id, planned_amount)
 select c.id, u.id, v.amount
 from (values

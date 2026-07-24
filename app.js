@@ -3,6 +3,8 @@
 // Sin autenticación: la app carga directamente; el acceso a datos lo permite
 // la política RLS para el rol anon (ver sql/02_acceso_abierto.sql).
 
+const ACTIVE_USER_KEY = 'gastos_active_user_id';
+
 const state = {
   categories: [],
   budgetChart: null,
@@ -11,6 +13,9 @@ const state = {
   customFrom: null,
   customTo: null,
   selectedCats: new Set(),      // ids de categoría filtradas; vacío = todas
+  users: [],                    // perfiles (Rosa, Jaime...) desde app_users
+  activeUserId: null,           // quién soy: se usa para registrar gastos
+  dashboardUserFilter: 'mine',  // 'mine' (solo activeUserId) | 'all' (Rosa+Jaime)
 };
 
 // Colores del gráfico (validados para contraste y daltonismo)
@@ -75,6 +80,120 @@ function toLocalISO(date) {
 
 function todayISO() {
   return toLocalISO(new Date());
+}
+
+// ---------- Perfiles (Rosa / Jaime) ----------
+//
+// Sin login: "quién soy" es solo un perfil elegido una vez y recordado en
+// este dispositivo (localStorage). Un único control en la cabecera hace
+// dos cosas a la vez:
+//   - Tocar tu nombre (Rosa/Jaime) = "soy esta persona": fija tu identidad
+//     (con la que se guardan los gastos nuevos) y filtra el dashboard a
+//     solo tus datos.
+//   - Tocar "Todos" = solo cambia la vista del dashboard a la suma de
+//     ambos; NO cambia quién eres para registrar gastos.
+
+async function loadUsers() {
+  const { data, error } = await db
+    .from('app_users')
+    .select('id, name')
+    .order('name', { ascending: true });
+
+  if (error) {
+    console.error('Error cargando usuarios', error);
+    return;
+  }
+
+  state.users = data || [];
+}
+
+// Recupera el perfil guardado en este dispositivo, si sigue siendo válido
+function resolveIdentity() {
+  const stored = localStorage.getItem(ACTIVE_USER_KEY);
+  if (stored && state.users.some((u) => u.id === stored)) {
+    state.activeUserId = stored;
+    return true;
+  }
+  return false;
+}
+
+function selectIdentity(userId) {
+  state.activeUserId = userId;
+  state.dashboardUserFilter = 'mine';
+  localStorage.setItem(ACTIVE_USER_KEY, userId);
+  renderProfileSwitch();
+  updateActiveUserLabel();
+}
+
+function showProfileGate() {
+  document.getElementById('view-profile-gate').classList.remove('hidden');
+  document.getElementById('view-app').classList.add('hidden');
+  document.getElementById('profile-switch').classList.add('hidden');
+
+  const wrap = document.getElementById('profile-gate-buttons');
+  wrap.innerHTML = '';
+  state.users.forEach((u) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = u.name;
+    btn.addEventListener('click', async () => {
+      selectIdentity(u.id);
+      document.getElementById('view-profile-gate').classList.add('hidden');
+      await startApp();
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+// Botones [Rosa] [Jaime] [Todos] en la cabecera
+function renderProfileSwitch() {
+  const wrap = document.getElementById('profile-switch');
+  wrap.classList.remove('hidden');
+  wrap.innerHTML = '';
+
+  state.users.forEach((u) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = u.name;
+    const isActive = state.dashboardUserFilter === 'mine' && state.activeUserId === u.id;
+    btn.className = isActive ? 'active' : '';
+    btn.addEventListener('click', () => {
+      selectIdentity(u.id);
+      loadReports();
+    });
+    wrap.appendChild(btn);
+  });
+
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.textContent = 'Todos';
+  allBtn.className = state.dashboardUserFilter === 'all' ? 'active' : '';
+  allBtn.addEventListener('click', () => {
+    state.dashboardUserFilter = 'all';
+    renderProfileSwitch();
+    loadReports();
+  });
+  wrap.appendChild(allBtn);
+}
+
+function updateActiveUserLabel() {
+  const user = state.users.find((u) => u.id === state.activeUserId);
+  const label = document.getElementById('active-user-label');
+  if (label) label.textContent = user?.name || '—';
+}
+
+// Aplica el filtro de perfil del dashboard; 'all' deja pasar todo
+function matchesUserFilter(userId) {
+  return state.dashboardUserFilter === 'all' || userId === state.activeUserId;
+}
+
+async function startApp() {
+  document.getElementById('view-app').classList.remove('hidden');
+  renderProfileSwitch();
+  updateActiveUserLabel();
+  await loadCategories();
+  await loadRecentExpenses();
+  await loadReports();
 }
 
 // ---------- Tabs ----------
@@ -169,6 +288,7 @@ function setupExpenseForm() {
       payment_method: document.getElementById('expense-payment-method').value,
       provider: document.getElementById('expense-provider').value.trim() || null,
       description: document.getElementById('expense-description').value.trim() || null,
+      user_id: state.activeUserId,
     };
 
     submitBtn.disabled = true;
@@ -192,7 +312,7 @@ function setupExpenseForm() {
 async function loadRecentExpenses() {
   const { data, error } = await db
     .from('expenses')
-    .select('id, date, amount, description, provider, payment_method, expense_categories(name)')
+    .select('id, date, amount, description, provider, payment_method, expense_categories(name), app_users(name)')
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(15);
@@ -209,7 +329,7 @@ function renderExpensesTable(tbody, rows, { deletable = false } = {}) {
   tbody.innerHTML = '';
   if (!rows || rows.length === 0) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td colspan="${deletable ? 7 : 6}" class="muted">Sin datos</td>`;
+    tr.innerHTML = `<td colspan="${deletable ? 8 : 7}" class="muted">Sin datos</td>`;
     tbody.appendChild(tr);
     return;
   }
@@ -217,6 +337,7 @@ function renderExpensesTable(tbody, rows, { deletable = false } = {}) {
   rows.forEach((row) => {
     const tr = document.createElement('tr');
     const categoryName = row.expense_categories?.name || '(sin categoría)';
+    const userName = row.app_users?.name || 'Sin asignar';
     tr.innerHTML = `
       <td>${row.date}</td>
       <td>${categoryName}</td>
@@ -224,6 +345,7 @@ function renderExpensesTable(tbody, rows, { deletable = false } = {}) {
       <td>${row.payment_method}</td>
       <td>${row.provider || ''}</td>
       <td>${row.description || ''}</td>
+      <td>${userName}</td>
       ${deletable ? `<td><button class="link-btn danger" data-delete-id="${row.id}">Borrar</button></td>` : ''}
     `;
     tbody.appendChild(tr);
@@ -318,7 +440,7 @@ async function loadReports() {
 
   let query = db
     .from('expenses')
-    .select('id, date, amount, description, provider, payment_method, category_id, expense_categories(name)')
+    .select('id, date, amount, description, provider, payment_method, category_id, user_id, expense_categories(name), app_users(name)')
     .order('date', { ascending: false });
 
   if (from) query = query.gte('date', from);
@@ -333,16 +455,21 @@ async function loadReports() {
 
   const { data: allBudgetItems, error: budgetError } = await db
     .from('budget_items')
-    .select('category_id, planned_amount, expense_categories(name)');
+    .select('category_id, user_id, planned_amount, expense_categories(name)');
 
   if (budgetError) {
     console.error('Error cargando presupuesto', budgetError);
     return;
   }
 
-  // El filtro de categorías se aplica a KPIs, gráfico y tablas
-  const expenses = (allExpenses || []).filter((e) => matchesCategoryFilter(e.category_id));
-  const budgetItems = (allBudgetItems || []).filter((b) => matchesCategoryFilter(b.category_id));
+  // El filtro de categorías y el de perfil (Rosa/Jaime/Todos) se aplican
+  // juntos a KPIs, gráfico y tablas.
+  const expenses = (allExpenses || []).filter(
+    (e) => matchesCategoryFilter(e.category_id) && matchesUserFilter(e.user_id)
+  );
+  const budgetItems = (allBudgetItems || []).filter(
+    (b) => matchesCategoryFilter(b.category_id) && matchesUserFilter(b.user_id)
+  );
 
   renderExpensesTable(document.querySelector('#filtered-expenses-table tbody'), expenses, { deletable: false });
   renderKPIs(budgetItems, expenses);
@@ -376,10 +503,21 @@ function renderBudgetComparison(budgetItems, expenses) {
     spentByCategory[key] = (spentByCategory[key] || 0) + Number(e.amount);
   });
 
-  const rows = budgetItems.map((b) => ({
-    name: b.expense_categories?.name || '(sin categoría)',
-    planned: Number(b.planned_amount),
-    spent: spentByCategory[b.category_id] || 0,
+  // Con "Todos" hay 2 filas de presupuesto por categoría (Rosa + Jaime):
+  // se agrupan y suman en una sola fila por categoría, no se listan aparte.
+  const plannedByCategory = {};
+  budgetItems.forEach((b) => {
+    const key = b.category_id || 'none';
+    if (!plannedByCategory[key]) {
+      plannedByCategory[key] = { name: b.expense_categories?.name || '(sin categoría)', planned: 0 };
+    }
+    plannedByCategory[key].planned += Number(b.planned_amount);
+  });
+
+  const rows = Object.entries(plannedByCategory).map(([categoryId, v]) => ({
+    name: v.name,
+    planned: v.planned,
+    spent: spentByCategory[categoryId] || 0,
   }));
 
   rows.sort((a, b) => a.name.localeCompare(b.name));
@@ -483,7 +621,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupExpenseForm();
   setupReportFilters();
   updateRangeUI();
-  await loadCategories();
-  await loadRecentExpenses();
-  await loadReports();
+
+  await loadUsers();
+  if (resolveIdentity()) {
+    await startApp();
+  } else {
+    showProfileGate();
+  }
 });

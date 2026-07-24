@@ -10,18 +10,30 @@
 <body>
 
 <header class="topbar">
-  <div class="brand">
-    <span class="brand-mark">€</span>
-    <div class="brand-text">
-      <h1>Gestión de Gastos</h1>
-      <span class="brand-sub">Personales</span>
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark">€</span>
+      <div class="brand-text">
+        <h1>Gestión de Gastos</h1>
+        <span class="brand-sub">Personales</span>
+      </div>
     </div>
+    <div id="profile-switch" class="profile-switch hidden" aria-label="Perfil activo"></div>
   </div>
 </header>
 
 <main id="app">
 
-  <div id="view-app">
+  <!-- Primera vez en este dispositivo: elegir perfil -->
+  <section id="view-profile-gate" class="view hidden">
+    <div class="card card-narrow">
+      <h2>¿Quién eres?</h2>
+      <p class="muted">Elige tu perfil. Este dispositivo lo recordará a partir de ahora.</p>
+      <div id="profile-gate-buttons" class="profile-gate-buttons"></div>
+    </div>
+  </section>
+
+  <div id="view-app" class="hidden">
 
     <nav class="tabs">
       <button type="button" class="tab-btn active" data-tab="expense">Registrar gasto</button>
@@ -31,7 +43,10 @@
     <!-- VISTA REGISTRO DE GASTO -->
     <section id="view-expense" class="view tab-panel active">
       <div class="card expense-card">
-        <h2>Nuevo gasto</h2>
+        <div class="expense-card-header">
+          <h2>Nuevo gasto</h2>
+          <span class="registering-as">Registrando como <strong id="active-user-label">—</strong></span>
+        </div>
         <form id="expense-form" class="expense-form">
           <div class="field">
             <label for="expense-date">Fecha</label>
@@ -84,7 +99,7 @@
           <table id="recent-expenses-table">
             <thead>
               <tr>
-                <th>Fecha</th><th>Categoría</th><th>Importe</th><th>Método</th><th>Proveedor</th><th>Descripción</th><th></th>
+                <th>Fecha</th><th>Categoría</th><th>Importe</th><th>Método</th><th>Proveedor</th><th>Descripción</th><th>Quién</th><th></th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -171,7 +186,7 @@
           <table id="filtered-expenses-table">
             <thead>
               <tr>
-                <th>Fecha</th><th>Categoría</th><th>Importe</th><th>Método</th><th>Proveedor</th><th>Descripción</th>
+                <th>Fecha</th><th>Categoría</th><th>Importe</th><th>Método</th><th>Proveedor</th><th>Descripción</th><th>Quién</th>
               </tr>
             </thead>
             <tbody></tbody>
